@@ -17,7 +17,8 @@ const store = new Store({
 });
 
 let mainTray = null;
-let addTodo = null;
+let addTodoWindow = null;
+let showTodoCompletedWindow = null;
 let allTodos = [];
 
 // Create a render function in order to be dynamic
@@ -26,7 +27,7 @@ const render = (tray = mainTray) => {
   allTodos = storedTodos ? JSON.parse(storedTodos) : [];
   const todos = allTodos
     .filter(item => item.state == 0)
-    .map(({ name, state }) => ({
+    .map(({ name }) => ({
       label: name,
       submenu: [
         {
@@ -59,9 +60,15 @@ const render = (tray = mainTray) => {
   // Create tray template
   const trayTemplate = [
     {
-      label: "Add new TODO",
+      label: "Add new...",
       click() {
         createAddTodo();
+      }
+    },
+    {
+      label: "Show completed...",
+      click() {
+        createShowTodoCompleted();
       }
     },
     {
@@ -89,23 +96,45 @@ const render = (tray = mainTray) => {
 };
 
 const createAddTodo = () => {
-  addTodo = new BrowserWindow({
+  addTodoWindow = new BrowserWindow({
     width: 300,
     height: 125,
     frame: false,
     webPreferences: { nodeIntegration: true }
   });
 
-  addTodo.loadFile(resolve(__dirname, "addTodoWindow.html"));
+  addTodoWindow.loadFile(resolve(__dirname, "addTodoWindow.html"));
 
   // Handle garbage collection
-  addTodo.on("close", () => {
-    addTodo = null;
+  addTodoWindow.on("close", () => {
+    addTodoWindow = null;
   });
 
-  addTodo.on("blur", e => {
+  // When the window is not focused
+  addTodoWindow.on("blur", e => {
     e.preventDefault();
-    addTodo.hide();
+    addTodoWindow.hide();
+  });
+};
+
+const createShowTodoCompleted = () => {
+  showTodoCompletedWindow = new BrowserWindow({
+    frame: false,
+    webPreferences: { nodeIntegration: true }
+  });
+
+  showTodoCompletedWindow.loadFile(
+    resolve(__dirname, "showTodoCompleted.html")
+  );
+
+  showTodoCompletedWindow.on("close", () => {
+    showTodoCompletedWindow = null;
+  });
+
+  // When the window is not focused
+  showTodoCompletedWindow.on("blur", e => {
+    e.preventDefault();
+    showTodoCompletedWindow.hide();
   });
 };
 
@@ -115,7 +144,7 @@ ipcMain.on("todo:add", (e, item) => {
   const name = item;
   const state = 0;
   store.set("todos", JSON.stringify([...allTodos, { name, state }]));
-  addTodo.hide();
+  addTodoWindow.hide();
   render();
 });
 
