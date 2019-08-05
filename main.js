@@ -1,19 +1,30 @@
 const { app, Tray, Menu, BrowserWindow, ipcMain } = require("electron");
 const { resolve } = require("path");
+const Store = require("electron-store");
 
 let mainTray = null;
 let addTodo = null;
-const allTodos = [];
+const store = new Store({
+  todos: {
+    type: "string"
+  }
+});
+let allTodos = [];
 
 // Create a render function in order to be dynamic
 const render = (tray = mainTray) => {
+  const storedTodos = store.get("todos");
+  allTodos = storedTodos ? JSON.parse(storedTodos) : [];
   const todos = allTodos.map(item => ({
     label: item,
     submenu: [
       {
         label: "Remover",
         click: () => {
-          allTodos.splice(allTodos.indexOf(item), 1);
+          store.set(
+            "todos",
+            JSON.stringify(allTodos.filter(todo => todo !== item))
+          );
           render();
         }
       }
@@ -89,7 +100,7 @@ const addTodoTemplate = [
 
 // Catch new todo
 ipcMain.on("todo:add", (e, item) => {
-  allTodos.push(item);
+  store.set("todos", JSON.stringify([...allTodos, item]));
   addTodo.hide();
   render();
 });
