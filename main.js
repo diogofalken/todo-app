@@ -102,6 +102,11 @@ const createAddTodo = () => {
   addTodo.on("close", () => {
     addTodo = null;
   });
+
+  addTodo.on("blur", e => {
+    e.preventDefault();
+    addTodo.hide();
+  });
 };
 
 // Catch new todo
@@ -125,13 +130,6 @@ app.on("ready", () => {
   });
 
   render(mainTray);
-});
-
-app.on("quit", e => {
-  e.preventDefault();
-  store.clear();
-  store.set("todos", JSON.stringify([...allTodos]));
-  app.quit();
 });
 
 // If OSX, add empty object to menu
