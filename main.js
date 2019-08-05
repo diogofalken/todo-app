@@ -1,35 +1,60 @@
-const { app, Tray, Menu, BrowserWindow, ipcMain } = require("electron");
+const {
+  app,
+  Tray,
+  Menu,
+  BrowserWindow,
+  ipcMain,
+  globalShortcut
+} = require("electron");
 const { resolve } = require("path");
 const Store = require("electron-store");
 
-let mainTray = null;
-let addTodo = null;
+// DB
 const store = new Store({
   todos: {
     type: "string"
   }
 });
+
+let mainTray = null;
+let addTodo = null;
 let allTodos = [];
 
 // Create a render function in order to be dynamic
 const render = (tray = mainTray) => {
   const storedTodos = store.get("todos");
   allTodos = storedTodos ? JSON.parse(storedTodos) : [];
-  const todos = allTodos.map(item => ({
-    label: item,
-    submenu: [
-      {
-        label: "Remover",
-        click: () => {
-          store.set(
-            "todos",
-            JSON.stringify(allTodos.filter(todo => todo !== item))
-          );
-          render();
+  const todos = allTodos
+    .filter(item => item.state == 0)
+    .map(({ name, state }) => ({
+      label: name,
+      submenu: [
+        {
+          label: "Completed",
+          click: () => {
+            // Find index and change state
+            let todoIndex = allTodos.findIndex(todo => todo.name == name);
+            allTodos[todoIndex].state = 1;
+
+            // Reset DB
+            store.clear();
+            store.set("todos", JSON.stringify([...allTodos]));
+            render();
+          }
+        },
+        {
+          label: "Remove",
+          click: () => {
+            // Add the new array to electron db
+            store.set(
+              "todos",
+              JSON.stringify(allTodos.filter(todo => todo.name !== name))
+            );
+            render();
+          }
         }
-      }
-    ]
-  }));
+      ]
+    }));
 
   // Create tray template
   const trayTemplate = [
@@ -47,6 +72,10 @@ const render = (tray = mainTray) => {
       type: "separator"
     },
     {
+      role: "reload",
+      accelerator: "CmdOrCtrl+R"
+    },
+    {
       role: "quit",
       accelerator: "CmdOrCtrl+Q"
     }
@@ -62,8 +91,8 @@ const render = (tray = mainTray) => {
 const createAddTodo = () => {
   addTodo = new BrowserWindow({
     width: 300,
-    height: 200,
-    title: "Add TODO",
+    height: 125,
+    frame: false,
     webPreferences: { nodeIntegration: true }
   });
 
@@ -75,32 +104,12 @@ const createAddTodo = () => {
   });
 };
 
-// Create menu template for addTodo window
-const addTodoTemplate = [
-  {
-    label: "File",
-    submenu: [
-      {
-        label: "Quit",
-        accelerator: "CmdOrCtrl+Q",
-        click() {
-          app.quit();
-        }
-      },
-      {
-        label: "Toggle DevTools",
-        accelerator: process.platform == "CmdOrCtrl+I",
-        click(item, focusedWindow) {
-          focusedWindow.toggleDevTools();
-        }
-      }
-    ]
-  }
-];
-
 // Catch new todo
 ipcMain.on("todo:add", (e, item) => {
-  store.set("todos", JSON.stringify([...allTodos, item]));
+  // Add to electron db
+  const name = item;
+  const state = 0;
+  store.set("todos", JSON.stringify([...allTodos, { name, state }]));
   addTodo.hide();
   render();
 });
@@ -110,11 +119,22 @@ app.on("ready", () => {
   // Create tray
   mainTray = new Tray(resolve(__dirname, "assets", "icon.png"));
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate(addTodoTemplate));
+  // Add global shortcut to add new todo
+  globalShortcut.register("CommandOrControl+Shift+X", () => {
+    createAddTodo();
+  });
+
   render(mainTray);
+});
+
+app.on("quit", e => {
+  e.preventDefault();
+  store.clear();
+  store.set("todos", JSON.stringify([...allTodos]));
+  app.quit();
 });
 
 // If OSX, add empty object to menu
 if (process.platform == "darwin") {
-  trayTemplate.unshift({});
+  addTodoTemplate.unshift({});
 }
